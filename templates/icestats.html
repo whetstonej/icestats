@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link href="{{ url_for('static', filename='bootstrap-datepicker/bootstrap-datepicker3.css') }}" rel="stylesheet">
+<title>Icecast Statistics</title>
+<style type="text/css">
+    #connection_plot {
+        width: 850px;
+        height: 375px;
+        margin: 8px auto;
+    }
+</style>
+</head>
+<body>
+<script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script src="{{url_for('static', filename='bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
+<div class="container-fluid">
+    <div class="text-center">
+        <h1>Icecast Statistics</h1>
+    </div>
+    <br/><br/>
+</div>
+
+<div class="col-md-8 col-md-offset-2 text-center">
+    <div class="form-inline">
+        <div class="form-group date">
+            <label for="start_dt">From</label>
+            <input id="start_dt" type="text" class="form-control" data-provide="datepicker" data-date-format="dd-M-yyyy" data-date-autoclose="true" data-date-today-highlight="true">
+            <label for="end_dt" style="padding-left:20px">To</label>
+            <input id="end_dt" type="text" class="form-control" data-provide="datepicker" data-date-format="dd-M-yyyy" data-date-autoclose="true" data-date-today-highlight="true">
+        </div>
+    </div>
+    <div class="form-inline">
+        <button class="btn btn-primary" onClick="loadgraph()" style="margin-top:5px">Load</button></td>
+    </div>
+    <div id="totaltime" class="row text-center"></div>
+    <div class="row">
+        <div id="connection_plot"></div>
+    </div>
+</div>
+<div id="containe2" class="row col-md-6 col-md-offset-3">
+	<div class="table-responsive col-md-6">
+        <table class="table table-condensed table-striped" style="font-size:90%">
+            <thead>
+                <tr><th>Referrer</th><th style="text-align:center;">Total Connection Count</th></tr>
+	        </thead>
+	        <tbody id="cnttbl">
+	        </tbody>
+        </table>
+    	</div>
+	<div class="table-responsive col-md-6">
+        <table class="table table-condensed table-striped" style="font-size:90%">
+	        <thead>
+		        <tr><th>Referrer</th><th style="text-align:center;">Total Connection Length</th></tr>
+	        </thead>
+	        <tbody id="lentbl">
+	        </tbody>
+        </table>
+	</div>
+</div>
+<div class="row col-md-4 col-md-offset-4">
+    <table class="table table-condensed table-striped" style="font-size:90%">
+        <thead>
+	    <tr><th>User Agent</th><th style="text-align:center;">Total Connection Count</th></tr>
+        </thead>
+        <tbody id="agenttbl">
+        </tbody>
+    </table>
+</div>
+<script type="text/javascript" src="{{url_for('static', filename='flotr2/flotr2.js')}}"></script>
+<script>
+$('#start_dt').datepicker({autoclose:true});
+$('#end_dt').datepicker({autoclose:true});
+document.onkeyup = function (e){
+    if ((window.event) ? event.keyCode == 13 : e.keyCode == 13) {
+        loadgraph();
+    }
+}
+
+var dataset = []
+var graph
+
+options = {
+    xaxis: {
+        mode: 'time',
+        noTicks: 6,
+        timeMode:'local',
+        labelsAngle: 45
+    },
+    selection: {
+        mode: 'x'
+    },
+    HtmlText: false,
+    title: 'Streaming Connections',
+    grid: {
+        minorVerticalLines: false,
+        backgroundColor: {
+            colors: [
+                [0, '#fff'],
+                [1, '#eee']
+            ],
+            start: 'top',
+            end: 'bottom'
+            }
+    },
+    mouse: {
+        track: true,
+        sensibility: 20,
+        trackFormatter: function(t) {
+            d = t.series.data;
+            dt = new Date(d[t.index][0]);
+            day = fmtdate(new Date(d[t.index][0]));
+            min = dt.getMinutes()
+            if (min < 10) {
+            min = '0' + min.toString();
+            }
+            return day + ' ' + dt.getHours() + ':' + min + ': '+ d[t.index][1].toFixed(0) + ' listeners';
+        }
+    }
+};
+function drawGraph(opts) {
+    o = Flotr._.extend(Flotr._.clone(options), opts || {});
+    return Flotr.draw(document.getElementById('connection_plot'), [dataset], o);
+}
+
+function fmtdate(d) {
+    return  d.getDate()+ '-' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + '-' + d.getFullYear(); 
+}
+
+function initdate() {
+    now = new Date();
+    $('#start_dt').val(fmtdate(now));
+    $('#end_dt').val(fmtdate(now));
+    loadgraph();
+}
+
+window.onload = initdate();
+
+function loadgraph() {
+    data = {}
+    data.start = $('#start_dt').val();
+    data.end = $('#end_dt').val();
+    tzoffset = new Date();
+    data.tzoffset = tzoffset.getTimezoneOffset();
+    request('/icestats', data);
+}
+function rp(rt) {
+    var r = JSON.parse(rt);
+    if (r.status == 'error') {
+        $('#error').html(r.message);
+    }
+    if (r.status == 'ok') {
+        dataset = r.dataset;
+	dataset_cnt = r.ref_cnt
+	dataset_len = r.ref_len
+    $('#totaltime').html(r.hr_label);
+	$('#cnttbl').html(r.cnt_tbl);
+	$('#lentbl').html(r.len_tbl);
+	$('#agenttbl').html(r.agent_tbl);
+        graph = drawGraph();
+        Flotr.EventAdapter.observe(document.getElementById('connection_plot'), 'flotr:select', function(area) {
+        graph = drawGraph({
+            xaxis: {
+                min: area.x1,
+                max: area.x2,
+                mode: 'time',
+                noTicks: 6,
+                timeMode: 'local',
+                labelsAngle: 45
+            },
+            yaxis: {
+                min: area.y1,
+                max: area.y2
+            }
+        });
+        });
+        Flotr.EventAdapter.observe(document.getElementById('connection_plot'), 'flotr:click', function() {graph = drawGraph();});
+        }
+}
+dataset_cnt = [] 
+dataset_len = []
+options_cnt = {
+	HtmlText: false,
+	title: 'Connections by Referrer',
+	fontSize: 10,
+	pie: {
+		show: true,
+		explode: 4
+	},
+	mouse: {
+		track: true,
+		relative: true
+	},
+	legend: {
+		position: 's'
+	}
+	}
+
+options_len = {
+	HtmlText: false,
+	title: 'Connection Length by Referrer',
+	fontSize: 10,
+	pie: {
+		show: true,
+		explode: 4
+	},
+	mouse: {
+		track: true,
+		relative: true
+	},
+	legend: {
+		position: 's'
+	}
+	}
+function request(url, data) {
+    r = new XMLHttpRequest();
+    r.open("POST", url, true);
+    r.setRequestHeader("Content-type", "application/json");
+    r.onreadystatechange = function() {
+        if (r.readyState == 4 && r.status == 200) {
+            rp(r.responseText);
+        }
+        if (r.readyState == 4 && r.status != 200) {
+            $('#error').html("Error " + r.status + ": " + r.statusText);
+        }
+    }
+    r.send(JSON.stringify(data));
+}
+</script>
+</html>

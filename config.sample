@@ -1,0 +1,33 @@
+# Icestats configuration file
+
+[Main]
+
+# directory which stores all icecast log files
+# all files containing the word 'access' will be enumerated
+# 
+# icecast_log_dir = /var/log/icecast
+icecast_log_dir =
+
+# database as defined in icestats.sql
+# generate with: $ sqlite3 <db_path> < icestats.sql
+# 
+# database_path = /srv/db/icelog.db
+database_path =
+
+# name of icecast mounts of which to count listeners
+# including the leading slash, comma separated
+#
+# mounts = /radio-192,/radio-128,/radio-mobile   
+mounts =
+
+# minimum connection length in seconds before it will be counted
+# as a listener
+# do not set this lower than 1
+min_connection_length = 2
+
+# list of user agents to ignore.  this is to prevent counting
+# upstream source traffic as listeners since it appears in the log
+# with other connections.
+# case sensitive, comma separated.
+# agents are ignored if the agent name starts with text in the list below
+ignored_agents = DarkIce
